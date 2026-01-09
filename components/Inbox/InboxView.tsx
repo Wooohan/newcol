@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Search, MessageSquareOff, Facebook, ChevronLeft, RefreshCw, Loader2, Zap, History, Clock } from 'lucide-react';
 import { useApp } from '../../store/AppContext';
@@ -72,7 +71,7 @@ const InboxView: React.FC = () => {
   };
 
   return (
-    <div className="flex h-[calc(100vh-40px)] bg-white overflow-hidden rounded-3xl md:rounded-[40px] border border-slate-100 shadow-2xl shadow-slate-200/40 relative max-w-full">
+    <div className="flex h-[calc(100vh-40px)] bg-white overflow-hidden rounded-3xl md:rounded-[40px] border border-slate-100 shadow-2xl shadow-slate-200/40 relative w-full max-w-full">
       {/* Sidebar List */}
       <div className={`w-full md:w-80 border-r border-slate-100 flex flex-col bg-slate-50/30 transition-all shrink-0 ${activeConvId ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 md:p-6 space-y-4 shrink-0">
@@ -189,9 +188,9 @@ const InboxView: React.FC = () => {
       </div>
 
       {/* Main Chat View */}
-      <div className={`flex-1 bg-white relative min-w-0 ${!activeConvId ? 'hidden md:flex' : 'flex h-full w-full'}`}>
+      <div className={`flex-1 bg-white relative min-w-0 overflow-hidden ${!activeConvId ? 'hidden md:flex' : 'flex h-full w-full'}`}>
         {activeConv ? (
-          <div className="flex flex-col w-full h-full min-w-0">
+          <div className="flex flex-col w-full h-full min-w-0 overflow-hidden">
             <button 
               onClick={() => setActiveConvId(null)}
               className="md:hidden absolute top-5 left-4 z-50 p-2 bg-slate-100 text-slate-600 rounded-full shadow-sm active:scale-95 transition-transform"
