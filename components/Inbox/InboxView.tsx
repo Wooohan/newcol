@@ -73,19 +73,19 @@ const InboxView: React.FC = () => {
   return (
     <div className="flex h-[calc(100vh-40px)] bg-white overflow-hidden rounded-3xl md:rounded-[40px] border border-slate-100 shadow-2xl shadow-slate-200/40 relative w-full max-w-full">
       {/* Sidebar List */}
-      <div className={`w-full md:w-80 border-r border-slate-100 flex flex-col bg-slate-50/30 transition-all shrink-0 ${activeConvId ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`w-full md:w-80 border-r border-slate-100 flex flex-col bg-slate-50/30 transition-all shrink-0 overflow-hidden ${activeConvId ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 md:p-6 space-y-4 shrink-0">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="min-w-0 flex-1">
               <h2 className="text-xl font-bold text-slate-800 tracking-tight">Inbox</h2>
               <div className="flex items-center gap-1.5 mt-1">
                 <div className={`w-1.5 h-1.5 rounded-full ${isPolling ? 'bg-blue-500 animate-ping' : 'bg-emerald-500'}`}></div>
-                <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">
+                <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest truncate">
                   {isPolling ? 'Syncing...' : lastSyncTime ? `Live • ${lastSyncTime}` : 'Connecting...'}
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <button 
                 onClick={handleQuickSync}
                 disabled={isPolling}
@@ -133,7 +133,7 @@ const InboxView: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-3 md:px-4 pb-8 space-y-2">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-3 md:px-4 pb-8 space-y-2">
           {visibleConversations.length > 0 ? (
             visibleConversations.map((conv) => {
               const isActive = activeConv?.id === conv.id;
@@ -142,13 +142,13 @@ const InboxView: React.FC = () => {
                 <button
                   key={conv.id}
                   onClick={() => setActiveConvId(conv.id)}
-                  className={`w-full text-left p-3 md:p-4 rounded-2xl md:rounded-[28px] transition-all border relative group min-w-0 ${
+                  className={`w-full text-left p-3 md:p-4 rounded-2xl md:rounded-[28px] transition-all border relative group overflow-hidden ${
                     isActive 
                       ? 'bg-white border-blue-500 shadow-xl shadow-blue-100/50 ring-4 ring-blue-50' 
                       : 'bg-transparent border-transparent hover:bg-white hover:border-slate-200'
                   }`}
                 >
-                  <div className="flex gap-3 min-w-0">
+                  <div className="flex gap-3 min-w-0 overflow-hidden">
                     <div className="relative flex-shrink-0">
                       <CachedAvatar conversation={conv} className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl shadow-sm object-cover" />
                       {conv.unreadCount > 0 && (
@@ -158,17 +158,17 @@ const InboxView: React.FC = () => {
                       )}
                     </div>
                     
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start mb-0.5">
-                        <h4 className={`font-bold truncate text-sm transition-colors ${isActive ? 'text-blue-600' : 'text-slate-800'}`}>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <div className="flex justify-between items-start mb-0.5 gap-2">
+                        <h4 className={`font-bold truncate text-sm transition-colors flex-1 min-w-0 ${isActive ? 'text-blue-600' : 'text-slate-800'}`}>
                           {conv.customerName}
                         </h4>
-                        <span className="text-[9px] font-bold text-slate-400 flex-shrink-0 ml-2 uppercase">
+                        <span className="text-[9px] font-bold text-slate-400 flex-shrink-0 uppercase whitespace-nowrap">
                           {new Date(conv.lastTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <p className="text-[11px] truncate text-slate-500 mb-2 font-medium">{conv.lastMessage}</p>
-                      <div className="flex items-center gap-2">
+                      <p className="text-[11px] truncate text-slate-500 mb-2 font-medium overflow-hidden">{conv.lastMessage}</p>
+                      <div className="flex items-center gap-2 overflow-hidden">
                         <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-tighter border shrink-0 ${getStatusColor(conv.status)}`}>
                           {conv.status}
                         </span>
