@@ -1,0 +1,30 @@
+{
+  "name": "messengerflow-realtime",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "cd server && npm run dev",
+    "server:prod": "cd server && npm start",
+    "setup": "bash setup.sh",
+    "deploy": "npm run build && pm2 start ecosystem.config.js",
+    "logs": "pm2 logs messengerflow-server",
+    "restart": "pm2 restart messengerflow-server"
+  },
+  "dependencies": {
+    "react-dom": "^19.2.3",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.3",
+    "recharts": "^3.6.0",
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
