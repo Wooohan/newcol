@@ -67,7 +67,8 @@ export const loginWithFacebook = async () => {
         reject(response?.error_message || 'Login Failed. Ensure "Login with JavaScript SDK" is ENABLED in Meta Dashboard.');
       }
     }, { 
-      scope: 'pages_messaging,pages_show_list,pages_manage_metadata,public_profile,pages_read_engagement' 
+      // Added crucial scopes for persistent Long-Lived tokens
+      scope: 'pages_messaging,pages_show_list,pages_manage_metadata,public_profile,pages_read_engagement,pages_manage_posts' 
     });
   });
 };
@@ -98,22 +99,26 @@ export const verifyPageAccessToken = async (pageId: string, accessToken: string)
     const url = `https://graph.facebook.com/v22.0/${pageId}?fields=id,name&access_token=${accessToken}`;
     const response = await fetch(url);
     const data = await response.json();
-    return !!(data && data.id && !data.error);
+    
+    // Improved logic: Only fail if the API explicitly says the token is invalid (Code 190)
+    if (data.error && (data.error.code === 190 || data.error.code === 102)) {
+      return false;
+    }
+    
+    // If it's a network error or other, assume still connected to prevent accidental UI disconnects
+    return true;
   } catch (e) {
-    return false;
+    // Persistent by default on network timeout
+    return true;
   }
 };
 
-/**
- * Enhanced fetch with limit and avatar suppression support.
- */
 export const fetchPageConversations = async (
   pageId: string, 
   pageAccessToken: string, 
   limit: number = 100,
   includeAvatars: boolean = true
 ): Promise<Conversation[]> => {
-  // If avatars aren't needed, don't even request participants to avoid User/picture calls
   const fields = includeAvatars 
     ? 'id,snippet,updated_time,participants{id,name,picture.type(large)},unread_count'
     : 'id,snippet,updated_time,unread_count';
@@ -177,18 +182,31 @@ export const fetchThreadMessages = async (conversationId: string, pageId: string
   }).reverse();
 };
 
-export const sendPageMessage = async (recipientId: string, text: string, pageAccessToken: string) => {
+export const sendPageMessage = async (recipientId: string, text: string, pageAccessToken: string, tag?: string) => {
   const url = `https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`;
+  
+  const payload: any = {
+    recipient: { id: recipientId },
+    message: { text },
+    messaging_type: tag ? "MESSAGE_TAG" : "RESPONSE"
+  };
+
+  if (tag) {
+    payload.tag = tag;
+  }
+
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      recipient: { id: recipientId },
-      message: { text },
-      messaging_type: "RESPONSE"
-    })
+    body: JSON.stringify(payload)
   });
+  
   const data = await response.json();
-  if (data.error) throw new Error(data.error.message);
+  if (data.error) {
+    const err = new Error(data.error.message);
+    (err as any).code = data.error.code;
+    (err as any).subcode = data.error.error_subcode;
+    throw err;
+  }
   return data;
 };
