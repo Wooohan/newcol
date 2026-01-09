@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Send, X, Link as LinkIcon, Image as ImageIcon, Library, AlertCircle, ChevronDown, Check, MessageSquare, Loader2, Trash2, ShieldAlert, Clock, Info, Zap } from 'lucide-react';
 import { Conversation, Message, ApprovedLink, ApprovedMedia, UserRole, ConversationStatus } from '../../types';
@@ -43,8 +42,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
   const [lastError, setLastError] = useState<{message: string, isPolicy?: boolean} | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [showRestrictedPopup, setShowRestrictedPopup] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const threadPollRef = useRef<number | null>(null);
+  const sentMessageIds = useRef<Set<string>>(new Set());
 
   const isAdmin = currentUser?.role === UserRole.SUPER_ADMIN;
 
@@ -104,12 +105,57 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
     }
   }, [chatMessages]);
 
+  const validateMessageContent = (text: string): boolean => {
+    // Check if message contains URLs (not from approved links)
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const urls = text.match(urlRegex) || [];
+    
+    if (urls.length > 0) {
+      const approvedUrls = approvedLinks.map(link => link.url);
+      const hasUnapprovedUrl = urls.some(url => !approvedUrls.includes(url));
+      
+      if (hasUnapprovedUrl) {
+        setShowRestrictedPopup(true);
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
   const handleSend = async (forcedText?: string) => {
     const textToSubmit = (forcedText || inputText).trim();
     if (!textToSubmit || isSending) return;
     
+    // Validate content if not from approved library
+    if (!forcedText && !validateMessageContent(textToSubmit)) {
+      return;
+    }
+
+    const currentPage = pages.find(p => p.id === conversation.pageId);
+    if (!currentPage || !currentPage.accessToken) {
+      setLastError({ message: 'Page not connected' });
+      return;
+    }
+
+    // Check if window is expired
+    if (isWindowExpired) {
+      setLastError({ 
+        message: 'This conversation is older than 24 hours. You can only send messages with the HUMAN_AGENT tag. Facebook may restrict this.',
+        isPolicy: true 
+      });
+    }
+
+    // Generate unique message ID
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Check if we already sent this message (prevent duplicates)
+    if (sentMessageIds.current.has(tempId)) {
+      return;
+    }
+    sentMessageIds.current.add(tempId);
+
     // OPTIMISTIC UI: Add to state instantly
-    const tempId = `temp-${Date.now()}`;
     const optimisticMessage: Message = {
       id: tempId,
       conversationId: conversation.id,
@@ -124,20 +170,35 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
     addMessage(optimisticMessage);
     setIsSending(true);
     setLastError(null);
-    const currentPage = pages.find(p => p.id === conversation.pageId);
     
     try {
-      if (currentPage && currentPage.accessToken) {
-        const tag = isWindowExpired ? "HUMAN_AGENT" : undefined;
-        const response = await sendPageMessage(conversation.customerId, textToSubmit, currentPage.accessToken, tag);
-        
-        // Update the optimistic message with real Meta ID
-        // (The polling will also pick it up, but this ensures instant continuity)
+      const tag = isWindowExpired ? "HUMAN_AGENT" : undefined;
+      const response = await sendPageMessage(conversation.customerId, textToSubmit, currentPage.accessToken, tag);
+      
+      // Update the optimistic message with real Meta ID if available
+      if (response.message_id) {
+        // Remove temp message and add real one
+        const realMessage: Message = {
+          ...optimisticMessage,
+          id: response.message_id
+        };
+        await addMessage(realMessage);
       }
+      
       if (!forcedText) setInputText('');
       setShowLibrary(false);
     } catch (err: any) {
-      setLastError({ message: err.message || 'Meta API Error' });
+      // Remove optimistic message on error
+      sentMessageIds.current.delete(tempId);
+      
+      if (err.code === 10900 || err.message?.includes('24 hour')) {
+        setLastError({ 
+          message: 'Cannot send message: 24-hour messaging window has expired. You need to wait for the customer to message you first, or use a message tag.',
+          isPolicy: true 
+        });
+      } else {
+        setLastError({ message: err.message || 'Failed to send message' });
+      }
     } finally {
       setIsSending(false);
     }
@@ -159,6 +220,29 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
 
   return (
     <div className="flex flex-col h-full bg-white relative overflow-hidden">
+      {showRestrictedPopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowRestrictedPopup(false)} />
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 relative z-10 animate-in zoom-in-95 duration-300 border border-red-100">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-red-100 text-red-600 rounded-xl">
+                <ShieldAlert size={24} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Content Restricted</h3>
+            </div>
+            <p className="text-slate-600 mb-6 leading-relaxed">
+              You can only send links and media that have been approved by the administrator. Please use the library button to access approved content.
+            </p>
+            <button 
+              onClick={() => setShowRestrictedPopup(false)}
+              className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+
       {showLibrary && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setShowLibrary(false)} />
@@ -168,7 +252,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
                    <div className="p-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-100">
                       <Library size={20} />
                    </div>
-                   <span className="text-sm font-black uppercase tracking-widest text-slate-800">Compliance Assets</span>
+                   <span className="text-sm font-black uppercase tracking-widest text-slate-800">Approved Content</span>
                 </div>
                 <button onClick={() => setShowLibrary(false)} className="p-2 hover:bg-white rounded-full transition-all text-slate-400">
                    <X size={24} />
@@ -204,18 +288,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
       )}
 
       <div className="px-4 md:px-8 py-4 md:py-5 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-xl shrink-0 z-30">
-        <div className="flex items-center gap-3 md:gap-4 ml-10 md:ml-0">
+        <div className="flex items-center gap-3 md:gap-4 ml-10 md:ml-0 flex-1 min-w-0">
           <div className="relative flex-shrink-0">
             <CachedAvatar conversation={conversation} className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl object-cover shadow-sm bg-slate-100" />
             <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></div>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-slate-800 text-sm md:text-base truncate">{conversation.customerName}</h3>
-              {isLoadingMessages && <Loader2 size={12} className="animate-spin text-blue-400" />}
+              {isLoadingMessages && <Loader2 size={12} className="animate-spin text-blue-400 flex-shrink-0" />}
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="relative inline-block">
                 <button 
                   onClick={() => setShowStatusMenu(!showStatusMenu)}
@@ -253,7 +337,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
               
               <div className={`px-2 py-0.5 rounded-lg border text-[8px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-50 text-emerald-600 border-emerald-100`}>
                 <Zap size={8} className="animate-pulse" />
-                Live Sync (500ms)
+                Live
               </div>
             </div>
           </div>
@@ -264,7 +348,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
             onClick={() => {
               if (window.confirm("Archive local chat view?")) deleteConversation(conversation.id).then(() => onDelete?.());
             }}
-            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all flex-shrink-0"
           >
             <Trash2 size={18} />
           </button>
@@ -274,7 +358,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 md:space-y-6 bg-slate-50/20 custom-scrollbar">
         {chatMessages.map((msg) => (
           <div key={msg.id} className={`flex flex-col ${msg.isIncoming ? 'items-start' : 'items-end'}`}>
-            <div className={`max-w-[85%] md:max-w-[75%] p-3 md:p-4 rounded-2xl md:rounded-3xl text-sm leading-relaxed shadow-sm ${
+            <div className={`max-w-[85%] md:max-w-[75%] p-3 md:p-4 rounded-2xl md:rounded-3xl text-sm leading-relaxed shadow-sm break-words ${
               msg.isIncoming 
                 ? 'bg-white text-slate-700 border border-slate-100 rounded-bl-none' 
                 : 'bg-blue-600 text-white shadow-blue-100 rounded-br-none'
@@ -287,6 +371,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
           </div>
         ))}
       </div>
+
+      {lastError && (
+        <div className={`mx-4 md:mx-8 mb-4 p-3 rounded-xl flex items-start gap-3 text-xs ${
+          lastError.isPolicy ? 'bg-amber-50 border border-amber-200 text-amber-700' : 'bg-red-50 border border-red-200 text-red-600'
+        }`}>
+          <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-bold mb-1">{lastError.isPolicy ? 'Policy Restriction' : 'Error'}</p>
+            <p className="text-[11px] leading-relaxed">{lastError.message}</p>
+          </div>
+          <button onClick={() => setLastError(null)} className="text-slate-400 hover:text-slate-600">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       <div className="p-4 md:p-8 border-t border-slate-100 bg-white shrink-0">
         <div className="flex items-end gap-2 md:gap-3 max-w-full">
@@ -301,7 +400,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
                value={inputText}
                onChange={e => setInputText(e.target.value)}
                className="w-full bg-slate-50 border border-slate-100 rounded-2xl md:rounded-3xl p-3 md:p-4 text-sm md:text-base outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-200 transition-all resize-none min-h-[56px] max-h-[120px] custom-scrollbar"
-               placeholder="Instant response..."
+               placeholder="Type your message..."
                rows={1}
                onKeyDown={(e) => {
                  if (e.key === 'Enter' && !e.shiftKey) {
