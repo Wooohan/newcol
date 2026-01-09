@@ -8,7 +8,7 @@ import PageSettings from './components/Admin/PageSettings';
 import MediaLibrary from './components/Admin/MediaLibrary';
 import SettingsView from './components/Admin/SettingsView';
 import { initFacebookSDK } from './services/facebookService';
-import { Mail, Lock, Loader2, AlertCircle, MessageSquare, Bell, Menu, CloudOff, Cloud, Database, Copy, Check, Terminal, Download } from 'lucide-react';
+import { Mail, Lock, Loader2, AlertCircle, MessageSquare, Bell, Menu, CloudOff, Cloud, Database, Copy, Check, Terminal } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
   const { login, dbStatus, dbError } = useApp();
