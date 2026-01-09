@@ -219,7 +219,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white relative overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-white relative overflow-hidden">
       {showRestrictedPopup && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowRestrictedPopup(false)} />
@@ -358,11 +358,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 md:space-y-6 bg-slate-50/20 custom-scrollbar">
         {chatMessages.map((msg) => (
           <div key={msg.id} className={`flex flex-col ${msg.isIncoming ? 'items-start' : 'items-end'}`}>
-            <div className={`max-w-[85%] md:max-w-[75%] p-3 md:p-4 rounded-2xl md:rounded-3xl text-sm leading-relaxed shadow-sm break-words ${
+            <div className={`max-w-[85%] md:max-w-[75%] p-3 md:p-4 rounded-2xl md:rounded-3xl text-sm leading-relaxed shadow-sm break-words overflow-wrap-anywhere ${
               msg.isIncoming 
                 ? 'bg-white text-slate-700 border border-slate-100 rounded-bl-none' 
                 : 'bg-blue-600 text-white shadow-blue-100 rounded-br-none'
-            }`}>
+            }`} style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', hyphens: 'auto' }}>
               {msg.text}
             </div>
             <span className="text-[8px] font-bold text-slate-400 mt-1.5 px-1 uppercase tracking-widest">
@@ -377,18 +377,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
           lastError.isPolicy ? 'bg-amber-50 border border-amber-200 text-amber-700' : 'bg-red-50 border border-red-200 text-red-600'
         }`}>
           <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
+          <div className="flex-1 min-w-0 break-words">
             <p className="font-bold mb-1">{lastError.isPolicy ? 'Policy Restriction' : 'Error'}</p>
-            <p className="text-[11px] leading-relaxed">{lastError.message}</p>
+            <p className="text-[11px] leading-relaxed break-words">{lastError.message}</p>
           </div>
-          <button onClick={() => setLastError(null)} className="text-slate-400 hover:text-slate-600">
+          <button onClick={() => setLastError(null)} className="text-slate-400 hover:text-slate-600 flex-shrink-0">
             <X size={14} />
           </button>
         </div>
       )}
 
       <div className="p-4 md:p-8 border-t border-slate-100 bg-white shrink-0">
-        <div className="flex items-end gap-2 md:gap-3 max-w-full">
+        <div className="flex items-end gap-2 md:gap-3 w-full">
            <button 
              onClick={() => setShowLibrary(true)}
              className={`p-3.5 md:p-4 rounded-xl md:rounded-2xl transition-all shrink-0 ${showLibrary ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-400 hover:bg-blue-50'}`}
