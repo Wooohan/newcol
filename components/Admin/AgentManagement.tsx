@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { UserPlus, Shield, Mail, Activity, Trash2, Key, X, LayoutGrid, CheckCircle2, ChevronRight, Facebook, AlertTriangle, Save } from 'lucide-react';
+import { UserPlus, Shield, Mail, Activity, Trash2, Key, X, LayoutGrid, CheckCircle2, ChevronRight, Facebook, AlertTriangle, Save, Loader2 } from 'lucide-react';
 import { useApp } from '../../store/AppContext';
 import { UserRole, User, FacebookPage } from '../../types';
 
@@ -9,6 +9,7 @@ const AgentManagement: React.FC = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [assigningAgent, setAssigningAgent] = useState<User | null>(null);
   const [showResetModal, setShowResetModal] = useState<User | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -17,10 +18,11 @@ const AgentManagement: React.FC = () => {
 
   const [resetPassValue, setResetPassValue] = useState('');
 
-  const handleInvite = (e: React.FormEvent) => {
+  const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName || !newEmail || !newPassword) return;
+    if (!newName || !newEmail || !newPassword || isSubmitting) return;
 
+    setIsSubmitting(true);
     const newAgent: User = {
       id: `agent-${Date.now()}`,
       name: newName,
@@ -32,18 +34,29 @@ const AgentManagement: React.FC = () => {
       assignedPageIds: [],
     };
 
-    addAgent(newAgent);
-    setNewName(''); setNewEmail(''); setNewPassword('');
-    setShowInviteModal(false);
+    try {
+      await addAgent(newAgent);
+      setNewName(''); setNewEmail(''); setNewPassword('');
+      setShowInviteModal(false);
+    } catch (err) {
+      // Error will be caught and logged by AppContext/Debug Terminal
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!showResetModal || !resetPassValue) return;
+    if (!showResetModal || !resetPassValue || isSubmitting) return;
     
-    await updateUser(showResetModal.id, { password: resetPassValue });
-    setResetPassValue('');
-    setShowResetModal(null);
+    setIsSubmitting(true);
+    try {
+      await updateUser(showResetModal.id, { password: resetPassValue });
+      setResetPassValue('');
+      setShowResetModal(null);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDeleteAgent = async (id: string) => {
@@ -52,15 +65,20 @@ const AgentManagement: React.FC = () => {
     }
   };
 
-  const togglePageAssignment = (pageId: string) => {
-    if (!assigningAgent) return;
-    const currentPages = assigningAgent.assignedPageIds || [];
-    const newPages = currentPages.includes(pageId)
-      ? currentPages.filter(id => id !== pageId)
-      : [...currentPages, pageId];
-    
-    updateUser(assigningAgent.id, { assignedPageIds: newPages });
-    setAssigningAgent({ ...assigningAgent, assignedPageIds: newPages });
+  const togglePageAssignment = async (pageId: string) => {
+    if (!assigningAgent || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const currentPages = assigningAgent.assignedPageIds || [];
+      const newPages = currentPages.includes(pageId)
+        ? currentPages.filter(id => id !== pageId)
+        : [...currentPages, pageId];
+      
+      await updateUser(assigningAgent.id, { assignedPageIds: newPages });
+      setAssigningAgent({ ...assigningAgent, assignedPageIds: newPages });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -165,8 +183,9 @@ const AgentManagement: React.FC = () => {
                     placeholder="••••••••"
                   />
                 </div>
-                <button type="submit" className="w-full py-5 bg-amber-600 text-white rounded-2xl font-bold shadow-xl hover:bg-amber-700 transition-all flex items-center justify-center gap-2">
-                  <Save size={20} /> Commit Reset
+                <button type="submit" disabled={isSubmitting} className="w-full py-5 bg-amber-600 text-white rounded-2xl font-bold shadow-xl hover:bg-amber-700 transition-all flex items-center justify-center gap-2">
+                  {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+                  Commit Reset
                 </button>
               </form>
            </div>
@@ -190,6 +209,7 @@ const AgentManagement: React.FC = () => {
                   pages.map(page => (
                     <button 
                       key={page.id}
+                      disabled={isSubmitting}
                       onClick={() => togglePageAssignment(page.id)}
                       className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${
                         (assigningAgent.assignedPageIds || []).includes(page.id)
@@ -199,7 +219,7 @@ const AgentManagement: React.FC = () => {
                     >
                       <div className="flex items-center gap-3">
                          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
-                            <Facebook size={20} />
+                            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Facebook size={20} />}
                           </div>
                           <div className="text-left">
                             <p className="text-sm font-bold text-slate-800">{page.name}</p>
@@ -242,7 +262,10 @@ const AgentManagement: React.FC = () => {
                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Initial Password</label>
                    <input type="password" required value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-500" />
                  </div>
-                 <button type="submit" className="w-full py-5 bg-blue-600 text-white rounded-2xl font-bold shadow-xl hover:bg-blue-700 transition-all">Complete Registration</button>
+                 <button type="submit" disabled={isSubmitting} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-bold shadow-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+                    {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : <UserPlus size={20} />}
+                    {isSubmitting ? 'Writing to Atlas...' : 'Complete Registration'}
+                 </button>
                  <button type="button" onClick={() => setShowInviteModal(false)} className="w-full text-slate-400 font-bold text-xs py-2">Cancel</button>
               </form>
            </div>
