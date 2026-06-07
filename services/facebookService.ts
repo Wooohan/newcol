@@ -68,7 +68,7 @@ export const loginWithFacebook = async () => {
       }
     }, { 
       // Added crucial scopes for persistent Long-Lived tokens
-      scope: 'pages_messaging,pages_show_list,pages_manage_metadata,public_profile,pages_read_engagement,pages_manage_posts' 
+      scope: 'pages_messaging,pages_show_list,pages_manage_metadata,public_profile,pages_read_engagement' 
     });
   });
 };
