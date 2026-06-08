@@ -4,7 +4,7 @@ import { FacebookPage, Conversation, Message, ConversationStatus } from '../type
 /**
  * Meta App ID: 1148755260666274
  */
-const FB_APP_ID: string = '1029942806221728'; 
+const FB_APP_ID: string = '2790618864643960'; 
 
 let sdkPromise: Promise<void> | null = null;
 
