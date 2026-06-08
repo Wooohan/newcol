@@ -4,9 +4,9 @@
  * Project: fiuodbhgvmylvbanbfve
  */
 
-const SUPABASE_URL = "https://fiuodbhgvmylvbanbfve.supabase.co";
+const SUPABASE_URL = "https://vjvbcynsmlkwagjxiuyh.supabase.co";
 // Using the 'messenger' secret key exactly as shown in your settings screenshot
-const SUPABASE_KEY = "sb_secret_x33xGa8YmioWvfyvDtWNXA_fT_8VL9V";
+const SUPABASE_KEY = "sb_secret_1y1syTSnkWLl4ejw1Poq1g_HVtgI4te";
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
