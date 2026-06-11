@@ -157,7 +157,8 @@ export const fetchPageConversations = async (
 };
 
 export const fetchThreadMessages = async (conversationId: string, pageId: string, pageAccessToken: string, since?: number): Promise<Message[]> => {
-  let url = `https://graph.facebook.com/v22.0/${conversationId}/messages?fields=id,message,created_time,from&access_token=${pageAccessToken}`;
+  // Added 'attachments' to fields to fetch image URLs from Meta
+  let url = `https://graph.facebook.com/v22.0/${conversationId}/messages?fields=id,message,created_time,from,attachments{payload,type}&access_token=${pageAccessToken}`;
   if (since) {
     url += `&since=${since}`;
   }
@@ -169,12 +170,22 @@ export const fetchThreadMessages = async (conversationId: string, pageId: string
 
   return (data.data || []).map((msg: any) => {
     const isFromPage = msg.from.id === pageId;
+    
+    // Extract image URL if attachment exists
+    let messageText = msg.message;
+    if (!messageText && msg.attachments?.data?.[0]) {
+      const attachment = msg.attachments.data[0];
+      if (attachment.type === 'image' && attachment.payload?.url) {
+        messageText = attachment.payload.url;
+      }
+    }
+
     return {
       id: msg.id,
       conversationId: conversationId,
       senderId: msg.from.id,
       senderName: msg.from.name,
-      text: msg.message,
+      text: messageText || '',
       timestamp: msg.created_time,
       isIncoming: !isFromPage,
       isRead: true
