@@ -197,7 +197,8 @@ export const fetchThreadMessages = async (conversationId: string, pageId: string
  * Convert base64 data URL to Blob
  */
 const base64ToBlob = (base64: string, mimeType: string = 'image/png'): Blob => {
-  const byteCharacters = atob(base64.split(',')[1]);
+  const parts = base64.split(',');
+  const byteCharacters = atob(parts[1]);
   const byteNumbers = new Array(byteCharacters.length);
   for (let i = 0; i < byteCharacters.length; i++) {
     byteNumbers[i] = byteCharacters.charCodeAt(i);
@@ -207,45 +208,8 @@ const base64ToBlob = (base64: string, mimeType: string = 'image/png'): Blob => {
 };
 
 /**
- * Upload image to Facebook and get attachment URL
- */
-const uploadImageToFacebook = async (
-  recipientId: string,
-  base64Image: string,
-  pageAccessToken: string
-): Promise<string> => {
-  try {
-    // Convert base64 to blob
-    const blob = base64ToBlob(base64Image);
-    
-    // Create FormData for multipart upload
-    const formData = new FormData();
-    formData.append('file', blob, 'image.png');
-    formData.append('access_token', pageAccessToken);
-    
-    // Upload to Facebook's image endpoint
-    const uploadUrl = `https://graph.facebook.com/v22.0/me/message_attachments`;
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'POST',
-      body: formData
-    });
-    
-    const uploadData = await uploadResponse.json();
-    
-    if (uploadData.error) {
-      throw new Error(uploadData.error.message);
-    }
-    
-    // Return the attachment ID for use in messages
-    return uploadData.attachment_id;
-  } catch (error) {
-    console.error('Image upload failed:', error);
-    throw error;
-  }
-};
-
-/**
- * Send a message with image attachment
+ * Send a message with image attachment using single multipart request
+ * This is more robust and avoids (#100) parameter missing errors
  */
 export const sendPageMessageWithImage = async (
   recipientId: string,
@@ -254,33 +218,34 @@ export const sendPageMessageWithImage = async (
   tag?: string
 ) => {
   try {
-    // First upload the image
-    const attachmentId = await uploadImageToFacebook(recipientId, base64Image, pageAccessToken);
-    
-    // Then send message with attachment
+    const blob = base64ToBlob(base64Image);
     const url = `https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`;
     
-    const payload: any = {
-      recipient: { id: recipientId },
-      message: {
-        attachment: {
-          type: 'image',
-          payload: {
-            attachment_id: attachmentId
-          }
+    // Construct the message object as required by Meta
+    const messagePayload = {
+      attachment: {
+        type: 'image',
+        payload: {
+          is_reusable: true
         }
-      },
-      messaging_type: tag ? "MESSAGE_TAG" : "RESPONSE"
+      }
     };
 
+    const formData = new FormData();
+    formData.append('recipient', JSON.stringify({ id: recipientId }));
+    formData.append('message', JSON.stringify(messagePayload));
+    formData.append('filedata', blob, 'image.png');
+    
     if (tag) {
-      payload.tag = tag;
+      formData.append('messaging_type', 'MESSAGE_TAG');
+      formData.append('tag', tag);
+    } else {
+      formData.append('messaging_type', 'RESPONSE');
     }
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: formData
     });
     
     const data = await response.json();
