@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useRe
 import { User, UserRole, FacebookPage, Conversation, Message, ConversationStatus, ApprovedLink, ApprovedMedia } from '../types';
 import { MASTER_ADMIN, MOCK_USERS } from '../constants';
 import { apiService } from '../services/apiService';
+import { dbService } from '../services/dbService';
 import { fetchPageConversations, verifyPageAccessToken } from '../services/facebookService';
 
 interface SystemLog {
@@ -117,7 +118,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           if (updates.length > 0) {
             hasChanges = true;
-            await Promise.all(updates.map(c => apiService.put('conversations', c)));
+            await Promise.all(updates.map(c => dbService.put('conversations', c)));
           }
         } catch (e) {
           // If 401/403, we still keep the page but log it to avoid disconnecting active sessions
@@ -128,7 +129,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       await Promise.all(syncPromises);
       
       if (hasChanges || limit > 5) {
-        const all = await apiService.getAll<Conversation>('conversations');
+        const all = await dbService.getAll<Conversation>('conversations');
         setConversations(all);
       }
       
@@ -149,13 +150,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loadDataFromCloud = async () => {
     setDbStatus('syncing');
     try {
+      // Initialize local DB first
+      await dbService.init();
+      
       const [agentsData, pagesData, convsData, msgsData, linksData, mediaData] = await Promise.all([
-        apiService.getAll<User>('agents'),
-        apiService.getAll<FacebookPage>('pages'),
-        apiService.getAll<Conversation>('conversations'),
-        apiService.getAll<Message>('messages'),
-        apiService.getAll<ApprovedLink>('links'),
-        apiService.getAll<ApprovedMedia>('media')
+        dbService.getAll<User>('agents'),
+        dbService.getAll<FacebookPage>('pages'),
+        dbService.getAll<Conversation>('conversations'),
+        dbService.getAll<Message>('messages'),
+        dbService.getAll<ApprovedLink>('links'),
+        dbService.getAll<ApprovedMedia>('media')
       ]);
 
       setAgents(agentsData.length > 0 ? agentsData : MOCK_USERS);
@@ -166,7 +170,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setApprovedMedia(mediaData);
       
       setDbStatus('connected');
-      addLog('success', 'Real-time Infrastructure Connected');
+      setDbName("Local Browser Storage");
+      addLog('success', 'Local Database Initialized');
 
       const session = localStorage.getItem(USER_SESSION_KEY);
       if (session) setCurrentUser(JSON.parse(session));
@@ -199,23 +204,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const value: AppContextType = {
     currentUser, setCurrentUser,
     pages,
-    addPage: async (p) => { await apiService.put('pages', p); setPages(prev => [...prev, p]); },
-    removePage: async (id) => { await apiService.delete('pages', id); setPages(prev => prev.filter(p => p.id !== id)); },
+    addPage: async (p) => { await dbService.put('pages', p); setPages(prev => [...prev, p]); },
+    removePage: async (id) => { await dbService.delete('pages', id); setPages(prev => prev.filter(p => p.id !== id)); },
     updatePage: async (id, u) => {
       const updated = pages.map(p => p.id === id ? { ...p, ...u } : p);
       setPages(updated);
       const page = updated.find(p => p.id === id);
-      if (page) await apiService.put('pages', page);
+      if (page) await dbService.put('pages', page);
     },
     conversations: [...conversations].sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()),
     updateConversation: async (id, u) => {
       const updated = conversations.map(c => c.id === id ? { ...c, ...u } : c);
       setConversations(updated);
       const conv = updated.find(c => c.id === id);
-      if (conv) await apiService.put('conversations', conv);
+      if (conv) await dbService.put('conversations', conv);
     },
     deleteConversation: async (id) => {
-      await apiService.delete('conversations', id);
+      await dbService.delete('conversations', id);
       setConversations(prev => prev.filter(c => c.id !== id));
     },
     messages,
@@ -224,10 +229,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (prev.find(existing => existing.id === m.id)) return prev;
         return [...prev, m];
       });
-      await apiService.put('messages', m); 
+      await dbService.put('messages', m); 
     },
     bulkAddMessages: async (msgs) => {
-      await Promise.all(msgs.map(m => apiService.put('messages', m)));
+      await Promise.all(msgs.map(m => dbService.put('messages', m)));
       setMessages(prev => {
         const existingIds = new Set(prev.map(m => m.id));
         const uniqueNew = msgs.filter(m => !existingIds.has(m.id));
@@ -235,13 +240,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
     },
     agents,
-    addAgent: async (a) => { await apiService.put('agents', a); setAgents(prev => [...prev, a]); },
-    removeAgent: async (id) => { await apiService.delete('agents', id); setAgents(p => p.filter(a => a.id !== id)); },
+    addAgent: async (a) => { await dbService.put('agents', a); setAgents(prev => [...prev, a]); },
+    removeAgent: async (id) => { await dbService.delete('agents', id); setAgents(p => p.filter(a => a.id !== id)); },
     updateUser: async (id, u) => {
       const updated = agents.map(a => a.id === id ? { ...a, ...u } : a);
       setAgents(updated);
       const agent = updated.find(a => a.id === id);
-      if (agent) await apiService.put('agents', agent);
+      if (agent) await dbService.put('agents', agent);
     },
     login: async (e, p) => {
       if (e === MASTER_ADMIN.email && p === MASTER_ADMIN.password) {
@@ -265,11 +270,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return page ? await verifyPageAccessToken(id, page.accessToken) : false;
     },
     approvedLinks,
-    addApprovedLink: async (l) => { await apiService.put('links', l); setApprovedLinks(p => [...p, l]); },
-    removeApprovedLink: async (id) => { await apiService.delete('links', id); setApprovedLinks(p => p.filter(l => l.id !== id)); },
+    addApprovedLink: async (l) => { await dbService.put('links', l); setApprovedLinks(p => [...p, l]); },
+    removeApprovedLink: async (id) => { await dbService.delete('links', id); setApprovedLinks(p => p.filter(l => l.id !== id)); },
     approvedMedia,
-    addApprovedMedia: async (m) => { await apiService.put('media', m); setApprovedMedia(p => [...p, m]); },
-    removeApprovedMedia: async (id) => { await apiService.delete('media', id); setApprovedMedia(p => p.filter(m => m.id !== id)); },
+    addApprovedMedia: async (m) => { await dbService.put('media', m); setApprovedMedia(p => [...p, m]); },
+    removeApprovedMedia: async (id) => { await dbService.delete('media', id); setApprovedMedia(p => p.filter(m => m.id !== id)); },
     dbStatus,
     dbName,
     dbError,
