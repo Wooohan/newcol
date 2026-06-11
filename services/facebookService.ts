@@ -182,6 +182,110 @@ export const fetchThreadMessages = async (conversationId: string, pageId: string
   }).reverse();
 };
 
+/**
+ * Convert base64 data URL to Blob
+ */
+const base64ToBlob = (base64: string, mimeType: string = 'image/png'): Blob => {
+  const byteCharacters = atob(base64.split(',')[1]);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+};
+
+/**
+ * Upload image to Facebook and get attachment URL
+ */
+const uploadImageToFacebook = async (
+  recipientId: string,
+  base64Image: string,
+  pageAccessToken: string
+): Promise<string> => {
+  try {
+    // Convert base64 to blob
+    const blob = base64ToBlob(base64Image);
+    
+    // Create FormData for multipart upload
+    const formData = new FormData();
+    formData.append('file', blob, 'image.png');
+    formData.append('access_token', pageAccessToken);
+    
+    // Upload to Facebook's image endpoint
+    const uploadUrl = `https://graph.facebook.com/v22.0/me/message_attachments`;
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      body: formData
+    });
+    
+    const uploadData = await uploadResponse.json();
+    
+    if (uploadData.error) {
+      throw new Error(uploadData.error.message);
+    }
+    
+    // Return the attachment ID for use in messages
+    return uploadData.attachment_id;
+  } catch (error) {
+    console.error('Image upload failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Send a message with image attachment
+ */
+export const sendPageMessageWithImage = async (
+  recipientId: string,
+  base64Image: string,
+  pageAccessToken: string,
+  tag?: string
+) => {
+  try {
+    // First upload the image
+    const attachmentId = await uploadImageToFacebook(recipientId, base64Image, pageAccessToken);
+    
+    // Then send message with attachment
+    const url = `https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`;
+    
+    const payload: any = {
+      recipient: { id: recipientId },
+      message: {
+        attachment: {
+          type: 'image',
+          payload: {
+            attachment_id: attachmentId
+          }
+        }
+      },
+      messaging_type: tag ? "MESSAGE_TAG" : "RESPONSE"
+    };
+
+    if (tag) {
+      payload.tag = tag;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    const data = await response.json();
+    if (data.error) {
+      const err = new Error(data.error.message);
+      (err as any).code = data.error.code;
+      (err as any).subcode = data.error.error_subcode;
+      throw err;
+    }
+    return data;
+  } catch (error) {
+    console.error('Failed to send image message:', error);
+    throw error;
+  }
+};
+
 export const sendPageMessage = async (recipientId: string, text: string, pageAccessToken: string, tag?: string) => {
   const url = `https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`;
   
