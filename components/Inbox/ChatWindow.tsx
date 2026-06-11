@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Send, X, Link as LinkIcon, Image as ImageIcon, Library, AlertCircle, ChevronDown, Check, MessageSquare, Loader2, Trash2, ShieldAlert, Clock, Info, Zap } from 'lucide-react';
 import { Conversation, Message, ApprovedLink, ApprovedMedia, UserRole, ConversationStatus } from '../../types';
 import { useApp } from '../../store/AppContext';
-import { sendPageMessage, fetchThreadMessages } from '../../services/facebookService';
+import { sendPageMessage, fetchThreadMessages, sendPageMessageWithImage } from '../../services/facebookService';
 
 interface ChatWindowProps {
   conversation: Conversation;
@@ -123,7 +123,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
     return true;
   };
 
-  const handleSend = async (forcedText?: string) => {
+  const handleSend = async (forcedText?: string, isImage: boolean = false) => {
     const textToSubmit = (forcedText || inputText).trim();
     if (!textToSubmit || isSending) return;
     
@@ -173,7 +173,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
     
     try {
       const tag = isWindowExpired ? "HUMAN_AGENT" : undefined;
-      const response = await sendPageMessage(conversation.customerId, textToSubmit, currentPage.accessToken, tag);
+      let response;
+      
+      // Check if the text is a base64 image (starts with data:image)
+      if (isImage || textToSubmit.startsWith('data:image')) {
+        response = await sendPageMessageWithImage(conversation.customerId, textToSubmit, currentPage.accessToken, tag);
+      } else {
+        response = await sendPageMessage(conversation.customerId, textToSubmit, currentPage.accessToken, tag);
+      }
       
       // Update the optimistic message with real Meta ID if available
       if (response.message_id) {
@@ -273,7 +280,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
                     </button>
                   ))}
                   {approvedMedia.map(media => (
-                    <button onClick={() => handleSend(media.url)} key={media.id} className="relative aspect-video rounded-3xl overflow-hidden border-2 border-slate-50 group shadow-sm">
+                    <button onClick={() => handleSend(media.url, true)} key={media.id} className="relative aspect-video rounded-3xl overflow-hidden border-2 border-slate-50 group shadow-sm">
                        <img src={media.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                        <div className="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-4">
                           <ImageIcon size={24} className="text-white mb-2" />
