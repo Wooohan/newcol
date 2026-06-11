@@ -365,12 +365,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onDelete }) => {
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 md:space-y-6 bg-slate-50/20 custom-scrollbar">
         {chatMessages.map((msg) => (
           <div key={msg.id} className={`flex flex-col ${msg.isIncoming ? 'items-start' : 'items-end'}`}>
-            <div className={`max-w-[85%] md:max-w-[75%] p-3 md:p-4 rounded-2xl md:rounded-3xl text-sm leading-relaxed shadow-sm break-words overflow-wrap-anywhere ${
+            <div className={`max-w-[85%] md:max-w-[75%] rounded-2xl md:rounded-3xl text-sm leading-relaxed shadow-sm break-words overflow-wrap-anywhere ${
               msg.isIncoming 
                 ? 'bg-white text-slate-700 border border-slate-100 rounded-bl-none' 
                 : 'bg-blue-600 text-white shadow-blue-100 rounded-br-none'
-            }`} style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', hyphens: 'auto' }}>
-              {msg.text}
+            } ${msg.text?.startsWith('data:image') || msg.text?.startsWith('http') && (msg.text?.match(/\.(jpeg|jpg|gif|png|webp)$/) || msg.text?.includes('attachment_id')) ? 'p-1' : 'p-3 md:p-4'}`} style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', hyphens: 'auto' }}>
+              {msg.text?.includes('data:image') ? (
+                <img src={msg.text.match(/data:image\/[a-zA-Z]*;base64,[^\s]*/)?.[0] || msg.text} alt="Attachment" className="rounded-xl md:rounded-2xl max-w-full h-auto cursor-pointer hover:opacity-95 transition-opacity" onClick={() => window.open(msg.text, '_blank')} />
+              ) : msg.text?.startsWith('http') && (msg.text?.match(/\.(jpeg|jpg|gif|png|webp)$/) || msg.text?.includes('scontent')) ? (
+                <img src={msg.text} alt="Attachment" className="rounded-xl md:rounded-2xl max-w-full h-auto cursor-pointer hover:opacity-95 transition-opacity" onClick={() => window.open(msg.text, '_blank')} />
+              ) : (
+                msg.text
+              )}
             </div>
             <span className="text-[8px] font-bold text-slate-400 mt-1.5 px-1 uppercase tracking-widest">
               {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
